@@ -1,0 +1,35 @@
+{
+  "name": "@explita/fastify-zod",
+  "version": "0.1.0",
+  "description": "Fastify plugin for Zod validation (sync + async)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "fastify",
+    "zod",
+    "validation",
+    "plugin"
+  ],
+  "author": "explita",
+  "license": "MIT",
+  "peerDependencies": {
+    "fastify": "^5",
+    "fastify-plugin": "^5"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "rimraf": "^6.0.1",
+    "typescript": "^5",
+    "zod": "^4"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,39 @@
+import type z from "zod";
+
+export function formatErrors(
+  issues: z.ZodError["issues"],
+  format: "simple" | "detailed" | "flat" = "simple"
+): Record<string, any> {
+  if (!issues) return {};
+
+  if (format === "flat") {
+    return issues.reduce((acc, issue) => {
+      const path = issue.path.join(".") || "_root";
+      return { ...acc, [path]: issue.message };
+    }, {});
+  }
+
+  if (format === "detailed") {
+    return issues;
+  }
+
+  // Default simple format
+  return issues.reduce((acc, issue) => {
+    const path = issue.path.join(".") || "_root";
+    if (!acc[path]) {
+      acc[path] = [];
+    }
+    acc[path].push(issue.message);
+    return acc;
+  }, {} as Record<string, string[]>);
+}
+
+export function isZodError(error: any): error is z.ZodError {
+  const issues = error.issues;
+  return (
+    issues &&
+    typeof issues === "object" &&
+    Array.isArray(issues) &&
+    issues.every((i: any) => "path" in i && "message" in i)
+  );
+}
