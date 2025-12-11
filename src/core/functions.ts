@@ -1,7 +1,9 @@
 import fp from "fastify-plugin";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { isZodError, formatErrors } from "../lib/utils.js";
-import type { PluginOptions, ZodSchemaConfig } from "../types.js";
+import type { PluginOptions } from "../types.js";
+import { check } from "./check.js";
+import { logRouteInfo } from "../lib/logger.js";
 
 export const fastifyZod = fp(
   async function (fastify: FastifyInstance, opts: PluginOptions) {
@@ -9,47 +11,61 @@ export const fastifyZod = fp(
       hint = "Invalid data submitted",
       format = "flat",
       verbose = true,
+      formatter,
+      soft = false,
     } = opts;
-
-    // Store schemas by route
-    const routeSchemas = new Map<string, ZodSchemaConfig>();
 
     // Hook to capture route schemas
     fastify.addHook("onRoute", (routeOptions) => {
-      if (routeOptions.zodSchema) {
-        const method = Array.isArray(routeOptions.method)
-          ? routeOptions.method[0]
-          : routeOptions.method;
-        const path = routeOptions.url;
+      if (!routeOptions.config) routeOptions.config = {};
 
-        routeSchemas.set(`${method}:${path}`, routeOptions.zodSchema);
+      if (routeOptions.validation?.schema) {
+        //@ts-ignore
+        routeOptions.config._zodSchema = routeOptions.validation.schema;
+      }
+
+      const routeChecks = routeOptions.validation?.check;
+      if (routeChecks) {
+        //@ts-ignore
+        routeOptions.config._routeChecks = routeChecks;
       }
     });
 
     // Hook to validate requests
-    fastify.addHook(
-      "preValidation",
-      async (request: FastifyRequest, reply: FastifyReply) => {
-        const requestId = request.id;
-        const method = request.method;
-        const url = request.url;
+    fastify.addHook("preHandler", async (request, reply) => {
+      const start = performance.now();
+      const requestId = request.id;
+      const method = request.method;
+      const url = request.url;
 
-        const schema = routeSchemas.get(`${method}:${url}`);
+      //@ts-ignore
+      const schema = request.routeOptions.config._zodSchema;
 
-        if (!schema) return;
-
+      if (schema) {
         if (verbose) {
           console.info("Validating request", { requestId, method, url });
         }
 
         try {
           if (schema.body) {
+            if (typeof schema.body.parse !== "function") {
+              if (soft) return;
+              throw new Error("schema.body is not a valid Zod schema");
+            }
             request.body = await schema.body.parseAsync(request.body);
           }
           if (schema.query) {
+            if (typeof schema.query.parse !== "function") {
+              if (soft) return;
+              throw new Error("schema.query is not a valid Zod schema");
+            }
             request.query = await schema.query.parseAsync(request.query);
           }
           if (schema.params) {
+            if (typeof schema.params.parse !== "function") {
+              if (soft) return;
+              throw new Error("schema.params is not a valid Zod schema");
+            }
             request.params = await schema.params.parseAsync(request.params);
           }
         } catch (error) {
@@ -57,7 +73,7 @@ export const fastifyZod = fp(
             console.error("Validation failed", {
               requestId,
               error,
-              validationError: isZodError(error) ? error.issues : undefined,
+              // validationError: isZodError(error) ? error.issues : undefined,
             });
           }
 
@@ -66,14 +82,41 @@ export const fastifyZod = fp(
               requestId,
               success: false,
               message: hint,
-              errors: formatErrors(error.issues, format),
+              errors: formatter
+                ? formatter(error.issues)
+                : formatErrors(error.issues, format),
               timestamp: new Date().toISOString(),
             });
           }
           throw error;
         }
       }
-    );
+
+      //@ts-ignore
+      const routeChecks = request.routeOptions.config?._routeChecks;
+      if (routeChecks) {
+        const errors = await check(request, routeChecks);
+
+        if (Object.keys(errors).length > 0) {
+          return reply
+            .status(400)
+            .send({ statusCode: 400, message: hint, ...errors });
+        }
+      }
+
+      const end = performance.now();
+
+      if (verbose && (schema || routeChecks)) {
+        logRouteInfo({
+          requestId,
+          method,
+          url,
+          schema,
+          checks: routeChecks,
+          duration: end - start,
+        });
+      }
+    });
   },
   { name: "@explita/fastify-zod", fastify: "^5" }
 );

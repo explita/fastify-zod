@@ -1,15 +1,18 @@
 # Fastify Zod
 
-A Fastify plugin that provides seamless integration with [Zod](https://zod.dev/) for request (before handler) validation. This plugin allows you to validate request body, query parameters, and route parameters using Zod schemas with minimal setup.
+A Fastify plugin that provides seamless integration with [Zod](https://zod.dev/) for request validation with custom check functions. This plugin allows you to validate request body, query parameters, and route parameters using Zod schemas with minimal setup.
 
 ## Features
 
-- 🚀 **Seamless Integration**: Works out of the box with Fastify v5+
+- 🚀 **Seamless Integration**: Works with Fastify v5+
 - 🔍 **Comprehensive Validation**: Validate request body, query, and route parameters
+- 🛡️ **Custom Validation**: Add custom validation logic with check functions
 - ⚡ **Async Support**: Built-in support for async validation
-- 📦 **Type Safety**: Full TypeScript support
+- 📦 **Type Safety**: Full TypeScript support with proper type inference
 - 🔄 **Flexible Error Formatting**: Multiple error formatting options
-- 📝 **Request Logging**: Built-in verbose logging for debugging
+- � **Path-based Errors**: Support for nested object validation errors
+
+#
 
 ## Installation
 
@@ -37,19 +40,30 @@ await app.register(fastifyZod, {
   hint: "Validation failed", // Custom error message
   format: "flat", // Error format: 'flat' | 'detailed' | 'simple'
   verbose: true, // Enable/disable logging
+  soft: true, // Don't throw on invalid schema
+  formatter: undefined, // Custom error formatter function
 });
 
-// Define your route with Zod validation
+// Define your route with validation
 app.get(
   "/users/:id",
   {
-    zodSchema: {
-      params: z.object({
-        id: z.string().uuid(),
-      }),
-      query: z.object({
-        page: z.string().optional().default("1"),
-      }),
+    validation: {
+      // Zod schemas for validation
+      schema: {
+        params: z.object({
+          id: z.string().uuid(),
+        }),
+        query: z.object({
+          page: z.string().optional().default("1"),
+        }),
+      },
+      // Custom validation checks
+      check: async (req, { multiPathError }) => {
+        if (req.query.page === "0") {
+          return multiPathError(["page"], "Page must be greater than 0");
+        }
+      },
     },
   },
   async (request) => {
@@ -66,38 +80,46 @@ app.listen({ port: 3000 });
 
 ### Plugin Options
 
-| Option    | Type                               | Default                    | Description                                  |
-| --------- | ---------------------------------- | -------------------------- | -------------------------------------------- |
-| `hint`    | `string`                           | `'Invalid data submitted'` | Custom error message for validation failures |
-| `format`  | `'flat' \| 'detailed' \| 'simple'` | `'flat'`                   | Error format style                           |
-| `verbose` | `boolean`                          | `true`                     | Enable/disable request validation logging    |
+| Option      | Type                               | Default                    | Description                                  |
+| ----------- | ---------------------------------- | -------------------------- | -------------------------------------------- |
+| `hint`      | `string`                           | `'Invalid data submitted'` | Custom error message for validation failures |
+| `format`    | `'flat' \| 'detailed' \| 'simple'` | `'simple'`                 | Error format style                           |
+| `verbose`   | `boolean`                          | `false`                    | Enable/disable request validation logging    |
+| `soft`      | `boolean`                          | `false`                    | Don't throw on invalid schema                |
+| `formatter` | `(issues: ZodIssue[]) => any`      | `undefined`                | Custom error formatter function              |
 
-#
+## Validation Options
 
-### Route Validation
-
-You can validate different parts of the request by providing corresponding Zod schemas in the `zodSchema` route option:
+Each route can define validation options:
 
 ```typescript
 app.post(
   "/users",
   {
-    zodSchema: {
-      body: z.object({
-        name: z.string().min(3),
-        email: z.string().email(),
-        age: z.number().int().positive().optional(),
-      }),
-      query: z.object({
-        debug: z.enum(["true", "false"]).optional(),
-      }),
-      params: z.object({
-        id: z.string().uuid(),
-      }),
+    validation: {
+      // Required: Zod schemas for validation
+      schema: {
+        body: z.object({
+          name: z.string().min(3),
+          email: z.string().email(),
+        }),
+      },
+      // Optional: Custom validation checks
+      check: [
+        async (req) => {
+          if (req.body.name === "admin") {
+            return { name: "Admin username is reserved" };
+          }
+        },
+        // Multiple checks are supported
+        async (req) => {
+          // Additional validation logic
+        },
+      ],
     },
   },
   async (request) => {
-    // Your handler logic here
+    // Your handler logic
   }
 );
 ```
@@ -106,29 +128,144 @@ app.post(
 
 ### Error Formatting
 
-The plugin supports different error formats:
+The plugin supports three error formats:
 
-- `flat`: Returns a flat object of error messages
-- `detailed`: Returns detailed error information including path and validation details - zodIssue[]
-- `simple`: Returns a simple error message
-
-#
-
-### Error Response
-
-When validation fails, the plugin returns a 400 response with the following structure:
+#### 1. Simple (default)
 
 ```json
 {
-  "success": false,
-  "message": "Validation failed",
-  "requestId": "req-1",
-  "errors": ["Invalid email address"],
-  "timestamp": "2025-01-01T12:00:00.000Z"
+  "errors": {
+    "email": ["Invalid email"],
+    "name": ["Required"]
+  }
+}
+```
+
+#### 2. Flat
+
+```json
+{
+  "errors": {
+    "email": "Invalid email",
+    "name": "Required"
+  }
+}
+```
+
+#### 3. Detailed
+
+```json
+{
+  "errors": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "undefined",
+      "path": ["email"],
+      "message": "Required"
+    }
+  ]
 }
 ```
 
 #
+
+#### Special Field Handling
+
+Keys starting with an underscore (`_`) in validation results are treated specially - they are promoted to the top level of the response object. This is useful for adding metadata or status codes to your error responses.
+
+```typescript
+app.post(
+  "/login",
+  {
+    validation: {
+      schema: {
+        body: z.object({
+          email: z.string().email(),
+          password: z.string().min(8),
+        }),
+      },
+      check: async (req) => {
+        if (req.body.email === "admin@example.com") {
+          return {
+            _status: "unauthorized", // Will appear at the top level
+            _code: 401, // Will appear at the top level
+            email: "Admin access restricted",
+            password: "Please use the admin portal",
+          };
+        }
+      },
+    },
+  },
+  async (request) => {
+    // Your handler
+  }
+);
+```
+
+Response when validation fails:
+
+```json
+{
+  "status": "unauthorized",
+  "code": 401,
+  "errors": {
+    "email": "Admin access restricted",
+    "password": "Please use the admin portal"
+  }
+}
+```
+
+#
+
+### Custom Error Formatter
+
+You can provide a custom formatter function to control the error response:
+
+```typescript
+await app.register(fastifyZod, {
+  formatter: (issues) => ({
+    success: false,
+    errors: issues.map((issue) => ({
+      field: issue.path.join("."),
+      message: issue.message,
+      code: issue.code,
+    })),
+  }),
+});
+```
+
+#
+
+### Type Safety
+
+The plugin provides full TypeScript support with proper type inference:
+
+```typescript
+app.post<{ Body: { name: string } }>(
+  "/users",
+  {
+    validation: {
+      schema: {
+        body: z.object({
+          name: z.string(),
+          email: z.string().email(),
+        }),
+      },
+      check: (req) => {
+        // req.body is properly typed as { name: string, email: string }
+        if (req.body.name === "test") {
+          return { name: "Test user not allowed" };
+        }
+      },
+    },
+  },
+  async (request) => {
+    // request.body is properly typed
+    return { name: request.body.name };
+  }
+);
+```
 
 ## License
 

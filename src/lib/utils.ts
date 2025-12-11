@@ -1,4 +1,23 @@
 import type z from "zod";
+import type { Path } from "../types.js";
+
+export function multiPathError<T>(paths: Path<T>[], message: string) {
+  return paths.reduce((acc, path) => {
+    acc[path] = message;
+    return acc;
+  }, {} as Partial<Record<Path<T>, string>>);
+}
+
+export function matchRoute(pattern: string, url: string) {
+  const clean = (str: string) => str.replace(/\/+$/, "");
+
+  const patternParts = clean(pattern).split("/").filter(Boolean);
+  const urlParts = clean(url).split("/").filter(Boolean);
+
+  if (patternParts.length !== urlParts.length) return false;
+
+  return patternParts.every((p, i) => p.startsWith(":") || p === urlParts[i]);
+}
 
 export function formatErrors(
   issues: z.ZodError["issues"],
