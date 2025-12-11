@@ -1,6 +1,6 @@
 {
   "name": "@explita/fastify-zod",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fastify plugin for Zod validation (sync + async)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
