@@ -1,12 +1,18 @@
 import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
 import { isZodError, formatErrors } from "../lib/utils.js";
-import type { PluginOptions } from "../types.js";
+import type {
+  CheckFn,
+  InferConfig,
+  PluginOptions,
+  SchemaConfig,
+} from "../types.js";
 import { check } from "./check.js";
 import { logRouteInfo } from "../lib/logger.js";
+import { defineRoute } from "./define-route.js";
 
 export const fastifyZod = fp(
-  async function (fastify: FastifyInstance, opts: PluginOptions) {
+  function (fastify: FastifyInstance, opts: PluginOptions, done) {
     const {
       hint = "Invalid data submitted",
       format = "flat",
@@ -117,6 +123,13 @@ export const fastifyZod = fp(
         });
       }
     });
+
+    //@ts-ignore
+    fastify.decorate("schema", function (config?: SchemaConfig) {
+      return defineRoute(this, { ...config, hint });
+    });
+
+    done();
   },
   { name: "@explita/fastify-zod", fastify: "^5" }
 );

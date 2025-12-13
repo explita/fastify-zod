@@ -1,5 +1,9 @@
-import type { FastifyRequest, RouteGenericInterface } from "fastify";
-import type { CheckFn } from "../types.js";
+import type {
+  FastifyReply,
+  FastifyRequest,
+  RouteGenericInterface,
+} from "fastify";
+import type { CheckFn, InferConfig } from "../types.js";
 import { multiPathError } from "../lib/utils.js";
 
 // 💡 Core checker
@@ -33,4 +37,21 @@ export async function check<Req extends RouteGenericInterface>(
   }
 
   return errorsObject;
+}
+
+export async function runChecks(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  currentChecks: CheckFn<InferConfig<any>>[]
+) {
+  const errors = await check(req, currentChecks);
+
+  if (errors && Object.keys(errors).length) {
+    return (
+      reply
+        .status(400)
+        //@ts-ignore
+        .send({ statusCode: 400, message: req.hint, ...errors })
+    );
+  }
 }

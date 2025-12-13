@@ -88,6 +88,85 @@ app.listen({ port: 3000 });
 | `soft`      | `boolean`                          | `false`                    | Don't throw on invalid schema                |
 | `formatter` | `(issues: ZodIssue[]) => any`      | `undefined`                | Custom error formatter function              |
 
+#
+
+## Chaining API
+
+The plugin provides a fluent chaining API for defining routes with validation:
+
+```typescript
+import { fastifyZod } from "@explita/fastify-zod";
+import { z } from "zod";
+
+// Register the plugin
+await app.register(fastifyZod);
+
+// Using the chaining API
+app
+  .schema({
+    body: z.object({
+      name: z.string(),
+      age: z.number().int().positive(),
+    }),
+  })
+  //check can take single or array of check functions
+  .check([
+    (req, { multiPathError }) => {
+      if (req.body.age < 18) {
+        return multiPathError(["age"], "Must be at least 18 years old");
+      }
+    },
+    // You can add more validation functions
+    (req) => {
+      if (req.body.name === "admin") {
+        return { name: "Admin username is not allowed" };
+      }
+    },
+  ])
+  .post("/users", async (req) => {
+    // req.body is properly typed
+    return { message: `Hello ${req.body.name}!` };
+  });
+
+// You can also chain multiple HTTP methods
+app
+  .schema({
+    params: z.object({
+      id: z.string().uuid(),
+    }),
+  })
+  .get("/users/:id", async (req) => {
+    // req.params.id is properly typed as string
+    return { userId: req.params.id };
+  })
+  .delete("/users/:id", async (req) => {
+    // Same schema is reused for all methods
+    return { deleted: req.params.id };
+  });
+
+// Method 2: Using defineRoute - pass fastify instance
+// This allows using check without schema.
+const routes = defineRoute(fastify, {
+  body: z.object({
+    name: z.string(),
+    age: z.number().int().positive(),
+  }),
+}).check((req, { multiPathError }) => {
+  // Custom validation
+});
+
+// Then use routes with HTTP methods
+routes.get("/users", async (req) => {
+  // req.body is properly typed
+  return { message: `Hello ${req.body.name}!` };
+});
+
+// For routes without validation, native fastify methods should be used
+app.get("/health", () => ({ status: "ok" }));
+```
+
+The chaining API supports all HTTP methods: `get`, `post`, `put`, `patch`, and `delete`. Each method call returns the same builder instance, allowing you to chain multiple routes with the same validation rules.
+
 ## Validation Options
 
 Each route can define validation options:

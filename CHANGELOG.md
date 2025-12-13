@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-13
+
+### Added
+
+- Chaining API with `fastify.schema()` method for fluent route definition
+- defineRoute function for standalone route definition with validation
+- Support for array of check functions in validation
+- Enhanced type inference for empty or partial schema configurations
+
+### Changed
+
+- Improved type safety for multiPathError utility
+- Better error handling for validation checks
+- Updated documentation with comprehensive examples
+
 ## [0.2.0] - 2025-12-11
 
 ### Added
