@@ -10,6 +10,7 @@ import type {
 import { check } from "./check.js";
 import { logRouteInfo } from "../lib/logger.js";
 import { defineRoute } from "./define-route.js";
+import { schemaValidation } from "./schema-validation.js";
 
 export const fastifyZod = fp(
   function (fastify: FastifyInstance, opts: PluginOptions, done) {
@@ -20,6 +21,8 @@ export const fastifyZod = fp(
       formatter,
       soft = false,
     } = opts;
+
+    const config = { hint, format, verbose, formatter, soft };
 
     // Hook to capture route schemas
     fastify.addHook("onRoute", (routeOptions) => {
@@ -40,63 +43,11 @@ export const fastifyZod = fp(
     // Hook to validate requests
     fastify.addHook("preHandler", async (request, reply) => {
       const start = performance.now();
-      const requestId = request.id;
-      const method = request.method;
-      const url = request.url;
 
       //@ts-ignore
       const schema = request.routeOptions.config._zodSchema;
 
-      if (schema) {
-        if (verbose) {
-          console.info("Validating request", { requestId, method, url });
-        }
-
-        try {
-          if (schema.body) {
-            if (typeof schema.body.parse !== "function") {
-              if (soft) return;
-              throw new Error("schema.body is not a valid Zod schema");
-            }
-            request.body = await schema.body.parseAsync(request.body);
-          }
-          if (schema.query) {
-            if (typeof schema.query.parse !== "function") {
-              if (soft) return;
-              throw new Error("schema.query is not a valid Zod schema");
-            }
-            request.query = await schema.query.parseAsync(request.query);
-          }
-          if (schema.params) {
-            if (typeof schema.params.parse !== "function") {
-              if (soft) return;
-              throw new Error("schema.params is not a valid Zod schema");
-            }
-            request.params = await schema.params.parseAsync(request.params);
-          }
-        } catch (error) {
-          if (verbose) {
-            console.error("Validation failed", {
-              requestId,
-              error,
-              // validationError: isZodError(error) ? error.issues : undefined,
-            });
-          }
-
-          if (isZodError(error)) {
-            return reply.status(400).send({
-              requestId,
-              success: false,
-              message: hint,
-              errors: formatter
-                ? formatter(error.issues)
-                : formatErrors(error.issues, format),
-              timestamp: new Date().toISOString(),
-            });
-          }
-          throw error;
-        }
-      }
+      schemaValidation(request, reply, schema, config);
 
       //@ts-ignore
       const routeChecks = request.routeOptions.config?._routeChecks;
@@ -113,10 +64,7 @@ export const fastifyZod = fp(
       const end = performance.now();
 
       if (verbose && (schema || routeChecks)) {
-        logRouteInfo({
-          requestId,
-          method,
-          url,
+        logRouteInfo(request, {
           schema,
           checks: routeChecks,
           duration: end - start,
@@ -125,8 +73,8 @@ export const fastifyZod = fp(
     });
 
     //@ts-ignore
-    fastify.decorate("schema", function (config?: SchemaConfig) {
-      return defineRoute(this, { ...config, hint });
+    fastify.decorate("schema", function (schema?: SchemaConfig) {
+      return defineRoute(this, { ...schema, config });
     });
 
     done();

@@ -109,7 +109,18 @@ app
       age: z.number().int().positive(),
     }),
   })
-  //check can take single or array of check functions
+  .pre(async (req) => {
+    // Runs before validation and checks
+    // Good for permission / authorization checks
+    console.log("Running pre-handler for:", req.url);
+    // You can modify the request object here if needed
+  })
+  .pre((req) => {
+    // You can chain multiple pre handlers
+    console.log("Running pre-handler for:", req.url);
+  })
+  // check can take single or array of check functions
+  // or chain multiple checks
   .check([
     (req, { multiPathError }) => {
       if (req.body.age < 18) {
@@ -145,15 +156,19 @@ app
   });
 
 // Method 2: Using defineRoute - pass fastify instance
-// This allows using check without schema.
 const routes = defineRoute(fastify, {
   body: z.object({
     name: z.string(),
     age: z.number().int().positive(),
   }),
-}).check((req, { multiPathError }) => {
-  // Custom validation
-});
+})
+  .pre(async (req) => {
+    // Pre-handler for all routes using this builder
+    console.log("Route pre-handler running");
+  })
+  .check((req, { multiPathError }) => {
+    // Custom validation
+  });
 
 // Then use routes with HTTP methods
 routes.get("/users", async (req) => {
@@ -161,9 +176,39 @@ routes.get("/users", async (req) => {
   return { message: `Hello ${req.body.name}!` };
 });
 
+//Or create the instance of the route
+const routes = defineRoute(fastify, {
+  body: z.object({
+    name: z.string(),
+    age: z.number().int().positive(),
+  }),
+})
+
+// then use it with pre(s) and check(s)
+routes
+.pre(...)
+.pre(...)
+.check(...)
+.check(...)
+.post("/users", async (req) => {
+  // req.body is properly typed
+  return { message: `Hello ${req.body.name}!` };
+})
+
 // For routes without validation, native fastify methods should be used
 app.get("/health", () => ({ status: "ok" }));
 ```
+
+### Chaining Order
+
+When using the chaining API, methods should be called in this specific order:
+
+1. `.schema(config)` - Define your schemas (optional)
+2. `.pre(handler)` - Add pre-handler (optional, must be before `.check()`)
+3. `.check(fn)` - Add validation checks (optional)
+4. HTTP method (`.get()`, `.post()`, etc.) - Define route handler
+
+> **Note**: `.pre()` must be called before any `.check()` or HTTP method calls. Once you call an HTTP method, you can't add more checks or pre-handlers to that route.
 
 The chaining API supports all HTTP methods: `get`, `post`, `put`, `patch`, and `delete`. Each method call returns the same builder instance, allowing you to chain multiple routes with the same validation rules.
 
@@ -196,6 +241,7 @@ app.post(
         },
       ],
     },
+    preHandler: (...)
   },
   async (request) => {
     // Your handler logic

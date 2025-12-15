@@ -1,3 +1,5 @@
+import type { FastifyRequest } from "fastify";
+
 const COLORS = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
@@ -19,21 +21,19 @@ function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-export function logRouteInfo({
-  requestId,
-  method,
-  url,
-  schema,
-  checks,
-  duration,
-}: {
-  requestId: string;
-  method: string;
-  url: string;
-  schema: any;
-  checks?: any[];
-  duration: number;
-}) {
+export function logRouteInfo(
+  req: FastifyRequest,
+  {
+    schema,
+    checks,
+    duration,
+  }: {
+    schema: any;
+    checks?: any[];
+    duration: number;
+  }
+) {
+  const { id, method, url } = req;
   const body = checkmark(!!schema?.body);
   const params = checkmark(!!schema?.params);
   const query = checkmark(!!schema?.query);
@@ -42,7 +42,7 @@ export function logRouteInfo({
 
   console.group(
     `${COLORS.blue}[fastify-zod]${COLORS.reset}  🔍  ${COLORS.cyan}${method} ${url}${COLORS.reset}  ` +
-      `${COLORS.dim}(req: ${requestId})${COLORS.reset}`
+      `${COLORS.dim}(req: ${id})${COLORS.reset}`
   );
 
   console.log(

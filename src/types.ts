@@ -113,16 +113,19 @@ export type Handler<C extends SchemaConfig> = RouteHandlerMethod<
   InferConfig<C>
 >;
 
+type PreHandler<C extends SchemaConfig> = Handler<C>;
+
 type HandlerMethod<C extends SchemaConfig> = Omit<
   ZodRouteBuilder<C>,
-  "check" | "schema"
+  "check" | "pre"
 >;
 
 export interface ZodRouteBuilder<C extends SchemaConfig> {
-  // schema(cfg: C): Omit<ZodRouteBuilder<C>, "schema">;
   check(
     fn: CheckFn<InferConfig<C>> | CheckFn<InferConfig<C>>[]
-  ): Omit<ZodRouteBuilder<C>, "schema">;
+  ): Omit<ZodRouteBuilder<C>, "pre">;
+
+  pre(fn: PreHandler<C>): ZodRouteBuilder<C>;
 
   post(url: string, handler: Handler<C>): HandlerMethod<C>;
   put(url: string, handler: Handler<C>): HandlerMethod<C>;
