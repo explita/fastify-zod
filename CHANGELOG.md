@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-12-18
+
+### Added
+
+- New `reject` utility function for simplified error returns in check functions
+
+  ```typescript
+  // Before
+  return { error: "Invalid input" };
+
+  // After
+  return reject("Invalid input"); // Returns { _message: "Invalid input" }
+  return reject({ field: "error" }); // Returns { field: "error" }
+  ```
+
+### Fixed
+
+- Fixed critical issue where schema validation errors were not properly halting execution, allowing invalid requests to reach route handlers
+
 ## [0.4.0] - 2025-12-15
 
 ### Added

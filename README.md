@@ -343,6 +343,35 @@ Response when validation fails:
 
 #
 
+### Using the `reject` Helper
+
+For simpler error returns in your check functions, use the `reject` helper:
+
+```typescript
+import { reject } from "@explita/fastify-zod";
+
+// In your route definition
+app
+  .schema({
+    /* ... */
+  })
+  .check((req) => {
+    if (!isValid(req.body)) {
+      // Simple string error (returns { _message: "Invalid input" })
+      return reject("Invalid input");
+
+      // Or with custom error object
+      return reject({
+        field: "Invalid value",
+        anotherField: "Must be a number",
+      });
+    }
+  })
+  .post("/example", handler);
+```
+
+#
+
 ### Custom Error Formatter
 
 You can provide a custom formatter function to control the error response:

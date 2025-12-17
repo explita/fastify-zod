@@ -47,7 +47,8 @@ export const fastifyZod = fp(
       //@ts-ignore
       const schema = request.routeOptions.config._zodSchema;
 
-      schemaValidation(request, reply, schema, config);
+      await schemaValidation(request, reply, schema, config);
+      if (reply.sent) return;
 
       //@ts-ignore
       const routeChecks = request.routeOptions.config?._routeChecks;

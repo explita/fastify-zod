@@ -43,6 +43,8 @@ export async function schemaValidation(
         }
         request.params = await schema.params.parseAsync(request.params);
       }
+
+      return false;
     } catch (error) {
       if (verbose) {
         console.error("Validation failed", {
@@ -53,7 +55,7 @@ export async function schemaValidation(
       }
 
       if (isZodError(error)) {
-        return reply.status(400).send({
+        reply.status(400).send({
           requestId: request.id,
           success: false,
           message: hint,
@@ -62,8 +64,12 @@ export async function schemaValidation(
             : formatErrors(error.issues, format),
           timestamp: new Date().toISOString(),
         });
+
+        return true;
       }
       throw error;
     }
   }
+
+  return false;
 }

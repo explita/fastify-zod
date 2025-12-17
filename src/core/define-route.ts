@@ -32,10 +32,12 @@ export function defineRoute<C extends SchemaConfig>(
             await pre(req, rep);
           }
 
-          schemaValidation(req, rep, schemaObj, config);
+          await schemaValidation(req, rep, schemaObj, config);
+          if (rep.sent) return;
 
           // then run checks returning error objects
-          runChecks(req, rep, checks);
+          await runChecks(req, rep, checks);
+          if (rep.sent) return;
 
           const end = performance.now();
 

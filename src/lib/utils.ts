@@ -45,3 +45,10 @@ export function isZodError(error: any): error is z.ZodError {
     issues.every((i: any) => "path" in i && "message" in i)
   );
 }
+
+export function reject(message: Record<string, string> | string) {
+  if (typeof message === "string") {
+    return { _message: message };
+  }
+  return message;
+}
